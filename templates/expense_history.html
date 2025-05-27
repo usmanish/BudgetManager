@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Expense History</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+<h1>Expense History</h1>
+
+<table border="1" cellpadding="5" cellspacing="0">
+<thead>
+<tr>
+  <th>Date</th>
+  <th>Description</th>
+  <th>Amount</th>
+  <th>Actions</th>
+</tr>
+</thead>
+<tbody>
+{% for expense in expenses %}
+<tr>
+  <td>{{ expense.date }}</td>
+  <td>{{ expense.description }}</td>
+  <td>${{ expense.amount }}</td>
+  <td>
+    <a href="{{ url_for('edit_expense', id=expense.id) }}">Edit</a> |
+    <form action="{{ url_for('delete_expense', id=expense.id) }}" method="post" style="display:inline;" onsubmit="return confirm('Delete this expense?');">
+      <button type="submit">Delete</button>
+    </form>
+  </td>
+</tr>
+{% else %}
+<tr><td colspan="4">No expense records found.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>Add New Expense</h2>
+<form method="post" action="{{ url_for('add_expense') }}">
+  <label>Amount: <input type="number" name="amount" step="0.01" required></label><br/>
+  <label>Description: <input type="text" name="description" required></label><br/>
+  <label>Date: <input type="date" name="date"></label><br/>
+  <button type="submit">Add Expense</button>
+</form>
+
+<p><a href="{{ url_for('dashboard') }}">Back to Dashboard</a></p>
+</body>
+</html>

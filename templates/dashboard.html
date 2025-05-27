@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+<h1>Dashboard</h1>
+
+<p>Total Income: ${{ income }}</p>
+<p>Total Expenses: ${{ expenses }}</p>
+<p>Balance: ${{ balance }}</p>
+{% if goal_amount %}
+<p>Goal for this month: ${{ goal_amount }}</p>
+{% else %}
+<p>No goal set for this month. <a href="{{ url_for('set_goal') }}">Set Goal</a></p>
+{% endif %}
+
+<h2>Monthly Income and Expenses (Last 12 months)</h2>
+<canvas id="monthlyChart" width="800" height="400"></canvas>
+
+<script>
+async function fetchChartData() {
+  const resp = await fetch('/chart-data');
+  const data = await resp.json();
+
+  const ctx = document.getElementById('monthlyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.months,
+      datasets: [
+        {
+          label: 'Income',
+          data: data.income,
+          borderColor: 'green',
+          fill: false,
+          tension: 0.1
+        },
+        {
+          label: 'Expenses',
+          data: data.expenses,
+          borderColor: 'red',
+          fill: false,
+          tension: 0.1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+fetchChartData();
+</script>
+
+<p><a href="{{ url_for('income_history') }}">View Income History</a> | <a href="{{ url_for('expense_history') }}">View Expense History</a></p>
+<p><a href="{{ url_for('logout') }}">Logout</a></p>
+</body>
+</html>

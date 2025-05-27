@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Set Monthly Goal</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+<h1>Set Monthly Income Goal</h1>
+
+<form method="post">
+  <label>Amount: <input type="number" name="amount" step="0.01" required value="{{ goal.amount if goal else '' }}"></label><br/>
+  <button type="submit">Save Goal</button>
+</form>
+
+<p><a href="{{ url_for('dashboard') }}">Back to Dashboard</a></p>
+</body>
+</html>

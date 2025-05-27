@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Edit Income</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+<h1>Edit Income</h1>
+
+<form method="post">
+  <label>Amount: <input type="number" name="amount" step="0.01" required value="{{ income.amount }}"></label><br/>
+  <label>Description: <input type="text" name="description" required value="{{ income.description }}"></label><br/>
+  <label>Date: <input type="date" name="date" value="{{ income.date }}"></label><br/>
+  <button type="submit">Update Income</button>
+</form>
+
+<p><a href="{{ url_for('income_history') }}">Back to Income History</a></p>
+</body>
+</html>
