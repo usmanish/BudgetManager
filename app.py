@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from sqlalchemy import func
+from sqlalchemy import extract, case
 import os
 
 # --- APP CONFIGURATION ---
@@ -257,37 +258,36 @@ def chart_data():
 
     user_id = session['user_id']
 
-    # Aggregate income by month
-    income_data = (
-        db.session.query(
-            func.strftime('%Y-%m', Income.date).label('month'),
-            func.sum(Income.amount).label('total_income')
-        )
-        .filter(Income.user_id == user_id)
-        .group_by('month')
-        .order_by('month')
-        .all()
-    )
+    # Determine the correct expression for month based on the database dialect
+    if 'sqlite' in db.engine.url.drivername:
+        month_expr = func.strftime('%Y-%m', Income.date)
+    else:
+        month_expr = func.to_char(Income.date, 'YYYY-MM')  # For PostgreSQL or others
 
-    # Aggregate expenses by month
-    expense_data = (
-        db.session.query(
-            func.strftime('%Y-%m', Expense.date).label('month'),
-            func.sum(Expense.amount).label('total_expense')
-        )
-        .filter(Expense.user_id == user_id)
-        .group_by('month')
-        .order_by('month')
-        .all()
-    )
+    # Aggregate income and expense by month
+    income_data = db.session.query(
+        month_expr.label('month'),
+        func.sum(Income.amount).label('total_income')
+    ).filter(Income.user_id == user_id).group_by(month_expr).all()
 
-    income_chart = [{"month": m, "total_income": inc} for m, inc in income_data]
-    expense_chart = [{"month": m, "total_expense": exp} for m, exp in expense_data]
+    expense_data = db.session.query(
+        month_expr.label('month'),
+        func.sum(Expense.amount).label('total_expense')
+    ).filter(Expense.user_id == user_id).group_by(month_expr).all()
 
-    return jsonify({
-        "income": income_chart,
-        "expense": expense_chart
-    })
+    # Merge income and expense data by month
+    income_dict = {item.month: item.total_income for item in income_data}
+    expense_dict = {item.month: item.total_expense for item in expense_data}
+    months = sorted(set(income_dict.keys()).union(expense_dict.keys()))
+
+    chart_data = {
+        "labels": months,
+        "income": [income_dict.get(month, 0) for month in months],
+        "expenses": [expense_dict.get(month, 0) for month in months]
+    }
+
+    return jsonify(chart_data)
+
 
 # --- RUN APP ---
 
