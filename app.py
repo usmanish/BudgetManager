@@ -2,9 +2,18 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-from sqlalchemy import func
-from sqlalchemy import extract, case
+from sqlalchemy import func, extract, case
 import os
+
+app = Flask(__name__, instance_relative_config=True)
+app.secret_key = 'your-secret-key'  # Use a secure secret key in production
+
+# Update the path to your database file here
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////Users/saadathasanakhtarusmani/Documents/BudgetManagerApp/data/budget.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
 
 # --- APP CONFIGURATION ---
 
