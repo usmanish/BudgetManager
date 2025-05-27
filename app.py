@@ -1,18 +1,27 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-from sqlalchemy import extract, func
+from sqlalchemy import func
 import os
 
-app = Flask(__name__)
-app.secret_key = 'secret_key_here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///budget.db'
+# --- APP CONFIGURATION ---
+
+app = Flask(__name__, instance_relative_config=True)
+app.secret_key = 'your-secret-key'  # Use a secure secret key in production
+
+# Update the path to your database file here
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////Users/saadathasanakhtarusmani/Documents/BudgetManagerApp/data/budget.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
+
+# --- DATABASE MODELS ---
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(80), nullable=False)
+    password = db.Column(db.String(255), nullable=False)
 
 class Income(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -34,13 +43,14 @@ class Goal(db.Model):
     month = db.Column(db.String(7))
     amount = db.Column(db.Float)
 
+with app.app_context():
+    db.create_all()
+
 # --- AUTH ROUTES ---
 
 @app.route('/')
 def index():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    return redirect(url_for('dashboard') if session.get('user_id') else url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -50,7 +60,8 @@ def register():
         if User.query.filter_by(username=username).first():
             flash('Username already exists!', 'danger')
             return redirect(url_for('register'))
-        user = User(username=username, password=password)
+        hashed_password = generate_password_hash(password)
+        user = User(username=username, password=hashed_password)
         db.session.add(user)
         db.session.commit()
         flash('Registration successful! Please login.', 'success')
@@ -62,8 +73,8 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user = User.query.filter_by(username=username, password=password).first()
-        if user:
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
             session['user_id'] = user.id
             flash('Logged in successfully!', 'success')
             return redirect(url_for('dashboard'))
@@ -80,7 +91,7 @@ def logout():
 
 @app.route('/dashboard')
 def dashboard():
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
 
     user_id = session['user_id']
@@ -104,16 +115,13 @@ def dashboard():
 
 @app.route('/income', methods=['POST'])
 def add_income():
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
 
     amount = float(request.form['amount'])
     description = request.form['description']
     date_str = request.form.get('date')
-    if date_str:
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        date = datetime.utcnow().date()
+    date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else datetime.utcnow().date()
 
     income = Income(user_id=session['user_id'], amount=amount, description=description, date=date)
     db.session.add(income)
@@ -123,17 +131,17 @@ def add_income():
 
 @app.route('/income/history')
 def income_history():
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
     incomes = Income.query.filter_by(user_id=session['user_id']).order_by(Income.date.desc()).all()
     return render_template('income_history.html', incomes=incomes)
 
 @app.route('/income/edit/<int:id>', methods=['GET', 'POST'])
 def edit_income(id):
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
-    income = Income.query.get_or_404(id)
-    if income.user_id != session['user_id']:
+    income = db.session.get(Income, id)
+    if not income or income.user_id != session['user_id']:
         flash("Unauthorized access!", 'danger')
         return redirect(url_for('income_history'))
 
@@ -150,10 +158,10 @@ def edit_income(id):
 
 @app.route('/income/delete/<int:id>', methods=['POST'])
 def delete_income(id):
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
-    income = Income.query.get_or_404(id)
-    if income.user_id != session['user_id']:
+    income = db.session.get(Income, id)
+    if not income or income.user_id != session['user_id']:
         flash("Unauthorized access!", 'danger')
         return redirect(url_for('income_history'))
     db.session.delete(income)
@@ -165,16 +173,13 @@ def delete_income(id):
 
 @app.route('/expense', methods=['POST'])
 def add_expense():
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
 
     amount = float(request.form['amount'])
     description = request.form['description']
     date_str = request.form.get('date')
-    if date_str:
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        date = datetime.utcnow().date()
+    date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else datetime.utcnow().date()
 
     expense = Expense(user_id=session['user_id'], amount=amount, description=description, date=date)
     db.session.add(expense)
@@ -184,17 +189,17 @@ def add_expense():
 
 @app.route('/expense/history')
 def expense_history():
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
     expenses = Expense.query.filter_by(user_id=session['user_id']).order_by(Expense.date.desc()).all()
     return render_template('expense_history.html', expenses=expenses)
 
 @app.route('/expense/edit/<int:id>', methods=['GET', 'POST'])
 def edit_expense(id):
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
-    expense = Expense.query.get_or_404(id)
-    if expense.user_id != session['user_id']:
+    expense = db.session.get(Expense, id)
+    if not expense or expense.user_id != session['user_id']:
         flash("Unauthorized access!", 'danger')
         return redirect(url_for('expense_history'))
 
@@ -211,10 +216,10 @@ def edit_expense(id):
 
 @app.route('/expense/delete/<int:id>', methods=['POST'])
 def delete_expense(id):
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
-    expense = Expense.query.get_or_404(id)
-    if expense.user_id != session['user_id']:
+    expense = db.session.get(Expense, id)
+    if not expense or expense.user_id != session['user_id']:
         flash("Unauthorized access!", 'danger')
         return redirect(url_for('expense_history'))
     db.session.delete(expense)
@@ -226,7 +231,7 @@ def delete_expense(id):
 
 @app.route('/goal', methods=['GET', 'POST'])
 def set_goal():
-    if 'user_id' not in session:
+    if not session.get('user_id'):
         return redirect(url_for('login'))
     user_id = session['user_id']
     current_month = datetime.today().strftime('%Y-%m')
@@ -247,55 +252,44 @@ def set_goal():
 
 @app.route('/chart-data')
 def chart_data():
-    if 'user_id' not in session:
-        return jsonify({})
+    if not session.get('user_id'):
+        return jsonify({"error": "Unauthorized"}), 401
 
     user_id = session['user_id']
 
-    # Get last 12 months (month-year strings)
-    today = datetime.today()
-    months = []
-    for i in range(11, -1, -1):
-        m = (today.month - i - 1) % 12 + 1
-        y = today.year - ((today.month - i - 1) // 12)
-        months.append(f"{y}-{m:02d}")
-
-    # Query total income per month
+    # Aggregate income by month
     income_data = (
         db.session.query(
-            func.strftime("%Y-%m", Income.date),
-            func.coalesce(func.sum(Income.amount), 0)
+            func.strftime('%Y-%m', Income.date).label('month'),
+            func.sum(Income.amount).label('total_income')
         )
         .filter(Income.user_id == user_id)
-        .filter(func.strftime("%Y-%m", Income.date).in_(months))
-        .group_by(func.strftime("%Y-%m", Income.date))
+        .group_by('month')
+        .order_by('month')
         .all()
     )
-    income_dict = {month: 0 for month in months}
-    for month, total in income_data:
-        income_dict[month] = total
 
-    # Query total expense per month
+    # Aggregate expenses by month
     expense_data = (
         db.session.query(
-            func.strftime("%Y-%m", Expense.date),
-            func.coalesce(func.sum(Expense.amount), 0)
+            func.strftime('%Y-%m', Expense.date).label('month'),
+            func.sum(Expense.amount).label('total_expense')
         )
         .filter(Expense.user_id == user_id)
-        .filter(func.strftime("%Y-%m", Expense.date).in_(months))
-        .group_by(func.strftime("%Y-%m", Expense.date))
+        .group_by('month')
+        .order_by('month')
         .all()
     )
-    expense_dict = {month: 0 for month in months}
-    for month, total in expense_data:
-        expense_dict[month] = total
+
+    income_chart = [{"month": m, "total_income": inc} for m, inc in income_data]
+    expense_chart = [{"month": m, "total_expense": exp} for m, exp in expense_data]
 
     return jsonify({
-        'months': months,
-        'income': [income_dict[m] for m in months],
-        'expenses': [expense_dict[m] for m in months]
+        "income": income_chart,
+        "expense": expense_chart
     })
 
+# --- RUN APP ---
+
 if __name__ == '__main__':
-    db.create_all()
     app.run(debug=True)
